@@ -3,27 +3,23 @@ use strict;
 use warnings;
 use utf8;
 use Amon2::Web::Dispatcher::RouterBoom;
+use Infrasso::Model::Receiver;
 
 any '/' => sub {
     my ($c) = @_;
-    my $counter = $c->session->get('counter') || 0;
-    $counter++;
-    $c->session->set('counter' => $counter);
-    return $c->render('index.tx', {
-        counter => $counter,
-    });
+    return $c->render('index.tx');
 };
 
-post '/reset_counter' => sub {
+any '/connect' => sub {
     my $c = shift;
-    $c->session->remove('counter');
-    return $c->redirect('/');
-};
-
-post '/account/logout' => sub {
-    my ($c) = @_;
-    $c->session->expire();
-    return $c->redirect('/');
+    return $c->websocket(sub {
+        my $ws = shift;
+        $ws->on_receive_message(sub {
+            my ($c, $message) = @_;
+            my $receiver = Infrasso::Model::Receiver->new(message => $message);
+            $receiver->process;
+        });
+    });
 };
 
 1;

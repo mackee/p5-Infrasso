@@ -12,57 +12,71 @@ use Infrasso;
 use URI::Escape;
 use File::Path ();
 
-my $app = builder {
-    enable 'Plack::Middleware::Static',
-        path => qr{^(?:/static/)},
-        root => File::Spec->catdir(dirname(__FILE__), '..');
-    enable 'Plack::Middleware::Static',
-        path => qr{^(?:/robots\.txt|/favicon\.ico)$},
-        root => File::Spec->catdir(dirname(__FILE__), '..', 'static');
-    enable 'Plack::Middleware::ReverseProxy';
+use Proclet;
 
-    Infrasso::Web->to_app();
-};
-unless (caller) {
-    my $port        = 5000;
-    my $host        = '127.0.0.1';
-    my $max_workers = 4;
+my $proclet = Proclet->new(color => 1);
 
-    require Getopt::Long;
-    require Plack::Loader;
-    my $p = Getopt::Long::Parser->new(
-        config => [qw(posix_default no_ignore_case auto_help)]
-    );
-    $p->getoptions(
-        'p|port=i'      => \$port,
-        'host=s'        => \$host,
-        'max-workers=i' => \$max_workers,
-        'version!'      => \my $version,
-        'c|config=s'    => \my $config_file,
-    );
-    if ($version) {
-        print "Infrasso: $Infrasso::VERSION\n";
-        exit 0;
-    }
-    if ($config_file) {
-        my $config = do $config_file;
-        Carp::croak("$config_file: $@") if $@;
-        Carp::croak("$config_file: $!") unless defined $config;
-        unless ( ref($config) eq 'HASH' ) {
-            Carp::croak("$config_file does not return HashRef.");
+$proclet->service(
+    code => sub {
+        my $app = builder {
+            enable 'Plack::Middleware::Static',
+                path => qr{^(?:/static/)},
+                root => File::Spec->catdir(dirname(__FILE__), '..');
+            enable 'Plack::Middleware::Static',
+                path => qr{^(?:/robots\.txt|/favicon\.ico)$},
+                root => File::Spec->catdir(dirname(__FILE__), '..', 'static');
+            enable 'Plack::Middleware::ReverseProxy';
+
+            Infrasso::Web->to_app();
+        };
+        my $port        = 5000;
+        my $host        = '127.0.0.1';
+        my $max_workers = 4;
+
+        require Getopt::Long;
+        require Plack::Loader;
+        my $p = Getopt::Long::Parser->new(
+            config => [qw(posix_default no_ignore_case auto_help)]
+        );
+        $p->getoptions(
+            'p|port=i'      => \$port,
+            'host=s'        => \$host,
+            'max-workers=i' => \$max_workers,
+            'version!'      => \my $version,
+            'c|config=s'    => \my $config_file,
+        );
+        if ($version) {
+            print "Infrasso: $Infrasso::VERSION\n";
+            exit 0;
         }
-        no warnings 'redefine';
-        no warnings 'once';
-        *Infrasso::load_config = sub { $config }
-    }
+        if ($config_file) {
+            my $config = do $config_file;
+            Carp::croak("$config_file: $@") if $@;
+            Carp::croak("$config_file: $!") unless defined $config;
+            unless ( ref($config) eq 'HASH' ) {
+                Carp::croak("$config_file does not return HashRef.");
+            }
+            no warnings 'redefine';
+            no warnings 'once';
+            *Infrasso::load_config = sub { $config }
+        }
 
-    print "Infrasso: http://${host}:${port}/\n";
+        print "Infrasso: http://${host}:${port}/\n";
 
-    my $loader = Plack::Loader->load('Starlet',
-        port        => $port,
-        host        => $host,
-        max_workers => $max_workers,
-    );
-    return $loader->run($app);
-}
-return $app;
+        my $loader = Plack::Loader->load('Twiggy',
+            port        => $port,
+            host        => $host,
+        );
+        return $loader->run($app);
+    },
+    tag => "web"
+);
+
+$proclet->service(
+    code => sub {
+        exec 'carton exec perl script/firmata-worker.pl';
+    },
+    tag => "worker"
+);
+
+$proclet->run;

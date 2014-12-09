@@ -13,6 +13,10 @@ requires 'Teng', '0.18';
 requires 'Test::WWW::Mechanize::PSGI';
 requires 'Text::Xslate', '2.0009';
 requires 'Time::Piece', '1.20';
+requires 'EV::Hiredis';
+requires 'Class::Accessor::Lite';
+requires 'FindBin::libs';
+requires 'Proclet';
 requires 'perl', '5.010_001';
 
 on configure => sub {

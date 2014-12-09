@@ -1,0 +1,3 @@
+[submodule "submodule/bootstrap-slider"]
+	path = submodule/bootstrap-slider
+	url = https://github.com/seiyria/bootstrap-slider.git
